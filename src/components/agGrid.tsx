@@ -1,6 +1,6 @@
 "use strict";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef } from "ag-grid-community";
 // import { tableData } from "../assets/data";
@@ -19,11 +19,11 @@ type DataItem = {
 const DataGrid = () => {
   const containerStyle = useMemo(() => ({ width: "100%", height: "100%" }), []);
   const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
-  const [columnDefs, setColumnDefs] = useState<ColDef<DataItem>[]>([
+  const columnDefs: ColDef<DataItem>[] = [
     // Note the use of 'ColDef<DataItem>' to specify the types for the columns
     { field: "jobTitle" },
     { field: "employmentType" },
-  ]);
+  ];
   const defaultColDef = useMemo(() => {
     return {
       flex: 1,
