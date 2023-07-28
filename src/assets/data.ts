@@ -3,17 +3,20 @@ export const tableData = [
       orgHierarchy: ['Erica Rogers'],
       jobTitle: 'CEO',
       employmentType: 'Permanent',
+      id: 1
     },
     {
       orgHierarchy: ['Erica Rogers', 'Malcolm Barrett'],
       jobTitle: 'Exec. Vice President',
       employmentType: 'Permanent',
+      id: 2
     },
 
     {
       orgHierarchy: ['Erica Rogers', 'Malcolm Barrett', 'Esther Baker'],
       jobTitle: 'Director of Operations',
       employmentType: 'Permanent',
+      id: 3
     },
     {
       orgHierarchy: [
@@ -24,6 +27,7 @@ export const tableData = [
       ],
       jobTitle: 'Fleet Coordinator',
       employmentType: 'Permanent',
+      id: 4
     },
     {
       orgHierarchy: [
@@ -35,6 +39,7 @@ export const tableData = [
       ],
       jobTitle: 'Parts Technician',
       employmentType: 'Contract',
+      id: 5
     },
     {
       orgHierarchy: [
@@ -46,6 +51,7 @@ export const tableData = [
       ],
       jobTitle: 'Service Technician',
       employmentType: 'Contract',
+      id: 6
     },
     {
       orgHierarchy: [
@@ -56,12 +62,14 @@ export const tableData = [
       ],
       jobTitle: 'Inventory Control',
       employmentType: 'Permanent',
+      id: 7
     },
 
     {
       orgHierarchy: ['Erica Rogers', 'Malcolm Barrett', 'Francis Strickland'],
       jobTitle: 'VP Sales',
       employmentType: 'Permanent',
+      id: 8
     },
     {
       orgHierarchy: [
@@ -72,6 +80,7 @@ export const tableData = [
       ],
       jobTitle: 'Sales Manager',
       employmentType: 'Permanent',
+      id: 9
     },
     {
       orgHierarchy: [
@@ -82,6 +91,7 @@ export const tableData = [
       ],
       jobTitle: 'Sales Executive',
       employmentType: 'Contract',
+      id: 10
     },
     {
       orgHierarchy: [
@@ -92,6 +102,7 @@ export const tableData = [
       ],
       jobTitle: 'Sales Executive',
       employmentType: 'Contract',
+      id: 11
     },
     {
       orgHierarchy: [
@@ -102,5 +113,6 @@ export const tableData = [
       ],
       jobTitle: 'Sales Executive',
       employmentType: 'Permanent',
+      id: 12
     },
   ];
