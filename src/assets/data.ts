@@ -106,9 +106,6 @@ export const tableData = [
     },
     {
       orgHierarchy: [
-        'Erica Rogers',
-        'Malcolm Barrett',
-        'Francis Strickland',
         'Joel Cooper',
       ],
       jobTitle: 'Sales Executive',

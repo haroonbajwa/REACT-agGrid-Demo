@@ -25,7 +25,8 @@ const getFileCellRenderer = () => {
       const value = params.value;
       const icon = "far fa-folder";
       tempDiv.innerHTML =
-        icon && params.node.__hasChildren
+        (icon && params.node.__hasChildren) ||
+        params.node.data.type === "folder"
           ? "<span>📁" + '<span class="filename"></span>' + value + "</span>"
           : value;
       //@ts-ignore
@@ -59,7 +60,105 @@ const DataGrid = () => {
   );
   const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
 
-  const columnDefs: any = [{ field: "jobTitle" }, { field: "employmentType" }];
+  const addNewFolder = useCallback((params: any) => {
+    const selectedNode = params.node;
+    // add the new folder as a child of the selected node
+    const newGroupData = {
+      id: Math.floor(Math.random() * (100 - 0) + 0),
+      orgHierarchy: [...selectedNode.data.orgHierarchy, "New Folder"],
+      jobTitle: "Folder",
+      employmentType: "Folder",
+      type: "folder", // Set type to "folder" for group rows
+    };
+
+    gridRef.current.api.applyTransaction({
+      add: [newGroupData],
+      addIndex: selectedNode.childIndex + 1, // Add the new folder after the selected node
+    });
+
+    // Since the selected node is now a parent, update its "type" property to "folder"
+    gridRef.current.api.applyTransaction({
+      update: [{ id: selectedNode.data.id, type: "folder" }],
+    });
+  }, []);
+
+  const deleteFolder = useCallback((params: any) => {
+    console.log(params, "deleteFolder");
+    const selectedNode = params.node;
+    const parentNode = selectedNode.parent;
+    if (!parentNode) {
+      console.warn("Cannot delete root node.");
+      return;
+    }
+
+    // Find the index of the folder in the parent node's children
+    const indexToDelete = parentNode.childrenAfterGroup.findIndex(
+      (node: any) => node.id === selectedNode.id
+    );
+
+    if (indexToDelete === -1) {
+      console.warn("Folder not found in parent's children.");
+      return;
+    }
+
+    // Remove the folder's data from the parent node's children
+    parentNode.childrenAfterGroup.splice(indexToDelete, 1);
+
+    // Assign the folder's children to the parent node's children
+    parentNode.childrenAfterGroup.push(...selectedNode.childrenAfterGroup);
+
+    // Update the parent node's type to "folder" if it has children, otherwise, set it to "leaf"
+    // const newType = parentNode.childrenAfterGroup.length ? "folder" : "leaf";
+    gridRef.current.api.applyTransaction({
+      update: [],
+    });
+
+    gridRef.current.api.refreshCells();
+    gridRef.current.api.deselectAll();
+  }, []);
+
+  const columnDefs: any = [
+    { field: "jobTitle" },
+    { field: "employmentType" },
+    {
+      headerName: "Folder",
+      field: "newFolder",
+      pinned: "right",
+      width: 150,
+      cellRenderer: (params: any) => {
+        console.log(params, "row params");
+        const showButtons =
+          params.node.allChildrenCount || params.node.data.type === "folder";
+        return (
+          showButtons && (
+            <div style={{ display: "flex" }}>
+              <button
+                style={{
+                  cursor: "pointer",
+                  marginRight: "5px",
+                  backgroundColor: "green",
+                }}
+                onClick={() => addNewFolder(params)}
+              >
+                ＋
+              </button>
+              <button
+                style={{ cursor: "pointer", backgroundColor: "#b81004" }}
+                onClick={() => deleteFolder(params)}
+              >
+                －
+              </button>
+            </div>
+          )
+        );
+      },
+    },
+  ];
+
+  const isFolder = (params: any) => {
+    return params.data.type === "folder" || params.node.allChildrenCount;
+  };
+
   const defaultColDef = useMemo(() => {
     return {
       flex: 1,
@@ -70,6 +169,7 @@ const DataGrid = () => {
     return {
       headerName: "Employees",
       minWidth: 330,
+      editable: isFolder,
       cellRendererParams: {
         // checkbox: true,
         suppressCount: true,
@@ -84,46 +184,46 @@ const DataGrid = () => {
     };
   }, []);
 
-  // add new folder under the selected folder/root folder
-  const addNewGroup = useCallback(() => {
-    const selectedNode = gridRef.current.api.getSelectedNodes()[0]; // Get the selected node (parent node)
-    console.log(selectedNode, "selectedNode");
+  // // add new folder under the selected folder/root folder
+  // const addNewGroup = useCallback(() => {
+  //   const selectedNode = gridRef.current.api.getSelectedNodes()[0]; // Get the selected node (parent node)
+  //   console.log(selectedNode, "selectedNode");
 
-    // if (!selectedNode || !selectedNode.group) {
-    if (!selectedNode) {
-      console.warn("No parent node selected. Adding to root.");
-      // If no node selected or the selected node is not a parent node, add to the root as a new group (parent) row
-      const newGroupData = {
-        orgHierarchy: ["New Folder"],
-        jobTitle: "Folder",
-        employmentType: "Folder",
-        type: "folder", // Set type to "folder" for group rows
-        children: [], // This is an empty array for children rows
-      };
+  //   // if (!selectedNode || !selectedNode.group) {
+  //   if (!selectedNode) {
+  //     console.warn("No parent node selected. Adding to root.");
+  //     // If no node selected add folder to the root
+  //     const newGroupData = {
+  //       orgHierarchy: ["New Folder"],
+  //       jobTitle: "Folder",
+  //       employmentType: "Folder",
+  //       type: "folder", // Set type to "folder" for group rows
+  //       children: [],
+  //     };
 
-      gridRef.current.api.applyTransaction({ add: [newGroupData] });
-    } else {
-      // If a parent node is selected, add the new folder as a child of the selected node
-      const newGroupData = {
-        id: Math.floor(Math.random() * (100 - 0) + 0),
-        orgHierarchy: [...selectedNode.data.orgHierarchy, "New Folder"],
-        jobTitle: "Folder",
-        employmentType: "Folder",
-        type: "folder", // Set type to "folder" for group rows
-        children: [], // This is an empty array for children rows
-      };
+  //     gridRef.current.api.applyTransaction({ add: [newGroupData] });
+  //   } else {
+  //     // add the new folder as a child of the selected node
+  //     const newGroupData = {
+  //       id: Math.floor(Math.random() * (100 - 0) + 0),
+  //       orgHierarchy: [...selectedNode.data.orgHierarchy, "New Folder"],
+  //       jobTitle: "Folder",
+  //       employmentType: "Folder",
+  //       type: "folder", // Set type to "folder" for group rows
+  //       children: [],
+  //     };
 
-      gridRef.current.api.applyTransaction({
-        add: [newGroupData],
-        addIndex: selectedNode.childIndex + 1, // Add the new folder after the selected node
-      });
+  //     gridRef.current.api.applyTransaction({
+  //       add: [newGroupData],
+  //       addIndex: selectedNode.childIndex + 1, // Add the new folder after the selected node
+  //     });
 
-      // Since the selected node is now a parent, update its "type" property to "folder"
-      gridRef.current.api.applyTransaction({
-        update: [{ id: selectedNode.data.id, type: "folder" }],
-      });
-    }
-  }, []);
+  //     // Since the selected node is now a parent, update its "type" property to "folder"
+  //     gridRef.current.api.applyTransaction({
+  //       update: [{ id: selectedNode.data.id, type: "folder" }],
+  //     });
+  //   }
+  // }, []);
 
   const isSelectionParentOfTarget = (selectedNode: any, targetNode: any) => {
     const children = [...(selectedNode.childrenAfterGroup || [])];
@@ -150,54 +250,11 @@ const DataGrid = () => {
     return false;
   };
 
-  // const getRowsToUpdate = (node: any, parentPath: any) => {
-  //   let res: any[] = [];
-  //   const newPath = parentPath.concat([node.key]);
-  //   if (node.data) {
-  //     // groups without data, i.e. 'filler groups' don't need path updated
-  //     node.data.orgHierarchy = newPath;
-  //   }
-  //   const children = node.childrenAfterGroup || [];
-  //   for (let i = 0; i < children.length; i++) {
-  //     const updatedChildRowData = getRowsToUpdate(children[i], newPath);
-  //     res = res.concat(updatedChildRowData);
-  //   }
-  //   // ignore nodes that have no data, i.e. 'filler groups'
-  //   return node.data ? res.concat([node.data]) : res;
-  // };
-
-  // // move selected to target node
-  // const moveSelectedNodeToTarget = useCallback((targetRowId: string) => {
-  //   const selectedNode = gridRef.current.api.getSelectedNodes()[0]; // single selection
-  //   if (!selectedNode) {
-  //     console.warn("No nodes selected!");
-  //     return;
-  //   }
-  //   const targetNode = gridRef.current.api.getRowNode(targetRowId);
-  //   console.log(targetRowId, "target");
-  //   const invalidMove =
-  //     selectedNode?.key === targetNode?.key ||
-  //     isSelectionParentOfTarget(selectedNode, targetNode);
-  //   if (invalidMove) {
-  //     console.warn("Invalid selection - must not be parent or same as target!");
-  //     return;
-  //   }
-  //   const rowsToUpdate = getRowsToUpdate(
-  //     selectedNode,
-  //     targetNode?.data.orgHierarchy
-  //   );
-  //   gridRef.current.api.applyTransaction({ update: rowsToUpdate });
-  // }, []);
-
-  const removeSelected = () => {};
-
   const handleRowDragEnter = (params: any) => {
     console.log(params, "params on enter");
   };
 
-  // Handle the row drag end event here
   const handleRowDragEnd = (event: any) => {
-    // this is the row the mouse is hovering over
     const overNode = event.overNode;
     if (!overNode) {
       return;
@@ -283,20 +340,12 @@ const DataGrid = () => {
   return (
     <div style={containerStyle}>
       <div className="example-wrapper">
-        <div style={{ marginBottom: "10px", marginLeft: "10px" }}>
-          <button onClick={addNewGroup} style={{ margin: "5px" }}>
-            Add New Group
-          </button>
-          <button onClick={removeSelected} style={{ margin: "5px" }}>
-            Remove Selected
-          </button>
-        </div>
         <div style={gridStyle} className="ag-theme-alpine">
           <AgGridReact
             ref={gridRef}
             rowData={rowData}
             rowDragManaged={true}
-            rowSelection="single"
+            // rowSelection="single"
             onRowDragEnter={handleRowDragEnter}
             onRowDragEnd={handleRowDragEnd}
             columnDefs={columnDefs}
