@@ -1,22 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
+import { v4 as uuid } from "uuid";
+// import Swal from "sweetalert2";
 // import { ColDef } from "ag-grid-community";
 // import { tableData } from "../assets/data";
 
-import { tableData } from "../assets/data";
+import { tableData, folders } from "../assets/data";
 
 import "ag-grid-enterprise";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import "../assets/agGrid.css";
-
-type DataItem = {
-  orgHierarchy: string[];
-  jobTitle: string;
-  employmentType: string;
-  id: number;
-  newFolderButton?: string;
-};
+import Swal from "sweetalert2";
 
 const getFileCellRenderer = () => {
   class FileCellRenderer {
@@ -45,77 +40,203 @@ const getFileCellRenderer = () => {
 
 //component function
 const DataGrid = () => {
-  const [rowData, setRowData] = useState<DataItem[]>([]);
-  // const [selectedItem, setSelectedItem] = useState<string>();
-
   const gridRef = useRef<any>();
+  const [foldersData, setFoldersData] = useState<any>([]);
+  const [recordsData, setRecordsData] = useState<any>([]);
 
   useEffect(() => {
-    tableData && setRowData(tableData);
-  }, [gridRef]);
+    folders && setFoldersData(folders);
+    tableData && setRecordsData(tableData);
+  }, []);
+
+  //convert data into tree structure
+  const convertFormat1ToFormat2 = (tableData: any[], folders: any[]): any[] => {
+    const format2Data: any[] = [];
+    const processedFolders = new Set();
+
+    const findFolderById = (folderId: any) => {
+      return folders.find((folder: any) => folder.id === folderId);
+    };
+
+    const processFolder = (folder: any, parentHierarchy: string[] = []) => {
+      const folderData = {
+        orgHierarchy: [...parentHierarchy, folder.name],
+        id: folder.id,
+      };
+
+      format2Data.push(folderData);
+      processedFolders.add(folder.id);
+
+      if (folder.children && folder.children.length > 0) {
+        folder.children.forEach((recordId: any) => {
+          const record = tableData.find((item: any) => item.id === recordId);
+          if (record) {
+            const recordData = {
+              orgHierarchy: [
+                ...folderData.orgHierarchy,
+                `${folder.name} Record${recordId}`,
+              ],
+              ...record,
+            };
+            format2Data.push(recordData);
+          }
+        });
+      }
+
+      if (folder.subFolderChildren && folder.subFolderChildren.length > 0) {
+        folder.subFolderChildren.forEach((subFolderId: any) => {
+          if (!processedFolders.has(subFolderId)) {
+            const subFolder = findFolderById(subFolderId);
+            if (subFolder) {
+              processFolder(subFolder, folderData.orgHierarchy);
+            }
+          }
+        });
+      }
+    };
+
+    folders.forEach((folder: any) => {
+      if (!processedFolders.has(folder.id)) {
+        processFolder(folder);
+      }
+    });
+
+    // Add records that are not assigned to any folder (at the root level)
+    tableData.forEach((record: any) => {
+      const isAssignedToFolder = folders.some((folder: any) =>
+        folder.children?.includes(record.id)
+      );
+      if (!isAssignedToFolder) {
+        format2Data.push({
+          orgHierarchy: [record.jobTitle],
+          id: record.id,
+          ...record,
+        });
+      }
+    });
+
+    const finalFormatData = format2Data.filter((d) => d.id !== undefined);
+
+    return finalFormatData;
+  };
+
+  // const hasParentFolder = (folderId: number): boolean => {
+  //   return folders.some(
+  //     (folder) =>
+  //       folder.children?.includes(folderId) ||
+  //       folder.subFolderChildren?.includes(folderId)
+  //   );
+  // };
+
+  const format2Data = convertFormat1ToFormat2(recordsData, foldersData);
+  console.log(format2Data, "data converted");
+
+  //add child folder inside any folder
+  const addChildFolder = (folderId: number) => {
+    Swal.fire({
+      title: "Enter Folder Name",
+      input: "text",
+      showCancelButton: true,
+      confirmButtonText: "Add Folder",
+      showLoaderOnConfirm: true,
+      preConfirm: (folderName) => {
+        return new Promise((resolve, reject) => {
+          // Check if a folder with the same name already exists
+          const isFolderNameExists = foldersData.some(
+            (folder: any) => folder.name === folderName
+          );
+
+          if (isFolderNameExists) {
+            reject("Folder with the same name already exists.");
+          } else {
+            // Simulate an asynchronous operation to create the folder
+            setTimeout(() => {
+              resolve(folderName);
+            }, 1000);
+          }
+        });
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    })
+      .then((result) => {
+        if (result.isConfirmed) {
+          const newFolderName = result.value;
+
+          setFoldersData((prevFoldersData: any) => {
+            const parentFolder = prevFoldersData.find(
+              (folder: any) => folder.id === folderId
+            );
+
+            if (parentFolder) {
+              const newChildFolder = {
+                name: newFolderName,
+                subFolderChildren: [],
+                id: uuid(), // Assuming you have a function to generate unique IDs
+              };
+
+              parentFolder.subFolderChildren = [
+                ...(parentFolder.subFolderChildren || []),
+                newChildFolder.id,
+              ];
+
+              prevFoldersData.push(newChildFolder);
+            }
+
+            return [...prevFoldersData];
+          });
+        }
+      })
+      .catch((error) => {
+        Swal.showValidationMessage(error);
+      });
+  };
+
+  // delete folder by id
+  const deleteFolderById = (folderId: any) => {
+    setFoldersData((prevFoldersData: any) => {
+      const updatedFoldersData = prevFoldersData.filter(
+        (folder: any) => folder.id !== folderId
+      );
+      const folderToDelete = prevFoldersData.find(
+        (folder: any) => folder.id === folderId
+      );
+
+      // Reassign child records to parent folder or at the root level
+      if (folderToDelete && folderToDelete.children) {
+        const unallocatedRecords = folderToDelete.children;
+        const parentFolder = prevFoldersData.find((folder: any) =>
+          folder.subFolderChildren?.includes(folderId)
+        );
+
+        if (parentFolder) {
+          parentFolder.children = [
+            ...(parentFolder.children || []),
+            ...unallocatedRecords,
+          ];
+        } else {
+          updatedFoldersData.push(...unallocatedRecords);
+        }
+
+        // Remove the child records from any subfolders
+        updatedFoldersData.forEach((folder: any) => {
+          if (folder.subFolderChildren) {
+            folder.subFolderChildren = folder.subFolderChildren.filter(
+              (subFolderId: any) => subFolderId !== folderId
+            );
+          }
+        });
+      }
+      console.log(updatedFoldersData, "update data");
+
+      return updatedFoldersData;
+    });
+  };
 
   const containerStyle = useMemo(
     () => ({ width: "100%", height: "100%", backgroundColor: "white" }),
     []
   );
   const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
-
-  const addNewFolder = useCallback((params: any) => {
-    const selectedNode = params.node;
-    // add the new folder as a child of the selected node
-    const newGroupData = {
-      id: Math.floor(Math.random() * (100 - 0) + 0),
-      orgHierarchy: [...selectedNode.data.orgHierarchy, "New Folder"],
-      jobTitle: "Folder",
-      employmentType: "Folder",
-      type: "folder", // Set type to "folder" for group rows
-    };
-
-    gridRef.current.api.applyTransaction({
-      add: [newGroupData],
-      addIndex: selectedNode.childIndex + 1, // Add the new folder after the selected node
-    });
-
-    // Since the selected node is now a parent, update its "type" property to "folder"
-    gridRef.current.api.applyTransaction({
-      update: [{ id: selectedNode.data.id, type: "folder" }],
-    });
-  }, []);
-
-  const deleteFolder = useCallback((params: any) => {
-    console.log(params, "deleteFolder");
-    const selectedNode = params.node;
-    const parentNode = selectedNode.parent;
-    if (!parentNode) {
-      console.warn("Cannot delete root node.");
-      return;
-    }
-
-    // Find the index of the folder in the parent node's children
-    const indexToDelete = parentNode.childrenAfterGroup.findIndex(
-      (node: any) => node.id === selectedNode.id
-    );
-
-    if (indexToDelete === -1) {
-      console.warn("Folder not found in parent's children.");
-      return;
-    }
-
-    // Remove the folder's data from the parent node's children
-    parentNode.childrenAfterGroup.splice(indexToDelete, 1);
-
-    // Assign the folder's children to the parent node's children
-    parentNode.childrenAfterGroup.push(...selectedNode.childrenAfterGroup);
-
-    // Update the parent node's type to "folder" if it has children, otherwise, set it to "leaf"
-    // const newType = parentNode.childrenAfterGroup.length ? "folder" : "leaf";
-    gridRef.current.api.applyTransaction({
-      update: [],
-    });
-
-    gridRef.current.api.refreshCells();
-    gridRef.current.api.deselectAll();
-  }, []);
 
   const columnDefs: any = [
     { field: "jobTitle" },
@@ -126,7 +247,6 @@ const DataGrid = () => {
       pinned: "right",
       width: 150,
       cellRenderer: (params: any) => {
-        console.log(params, "row params");
         const showButtons =
           params.node.allChildrenCount || params.node.data.type === "folder";
         return (
@@ -138,13 +258,13 @@ const DataGrid = () => {
                   marginRight: "5px",
                   backgroundColor: "green",
                 }}
-                onClick={() => addNewFolder(params)}
+                onClick={() => addChildFolder(params.data.id)}
               >
                 ＋
               </button>
               <button
                 style={{ cursor: "pointer", backgroundColor: "#b81004" }}
-                onClick={() => deleteFolder(params)}
+                onClick={() => deleteFolderById(params.data.id)}
               >
                 －
               </button>
@@ -155,9 +275,9 @@ const DataGrid = () => {
     },
   ];
 
-  const isFolder = (params: any) => {
-    return params.data.type === "folder" || params.node.allChildrenCount;
-  };
+  // const isFolder = (params: any) => {
+  //   return params.data.type === "folder" || params.node.allChildrenCount;
+  // };
 
   const defaultColDef = useMemo(() => {
     return {
@@ -169,7 +289,7 @@ const DataGrid = () => {
     return {
       headerName: "Employees",
       minWidth: 330,
-      editable: isFolder,
+      // editable: isFolder,
       cellRendererParams: {
         // checkbox: true,
         suppressCount: true,
@@ -180,50 +300,10 @@ const DataGrid = () => {
   }, []);
   const getDataPath = useMemo(() => {
     return (data: any) => {
+      console.log(data, "get path");
       return data.orgHierarchy;
     };
   }, []);
-
-  // // add new folder under the selected folder/root folder
-  // const addNewGroup = useCallback(() => {
-  //   const selectedNode = gridRef.current.api.getSelectedNodes()[0]; // Get the selected node (parent node)
-  //   console.log(selectedNode, "selectedNode");
-
-  //   // if (!selectedNode || !selectedNode.group) {
-  //   if (!selectedNode) {
-  //     console.warn("No parent node selected. Adding to root.");
-  //     // If no node selected add folder to the root
-  //     const newGroupData = {
-  //       orgHierarchy: ["New Folder"],
-  //       jobTitle: "Folder",
-  //       employmentType: "Folder",
-  //       type: "folder", // Set type to "folder" for group rows
-  //       children: [],
-  //     };
-
-  //     gridRef.current.api.applyTransaction({ add: [newGroupData] });
-  //   } else {
-  //     // add the new folder as a child of the selected node
-  //     const newGroupData = {
-  //       id: Math.floor(Math.random() * (100 - 0) + 0),
-  //       orgHierarchy: [...selectedNode.data.orgHierarchy, "New Folder"],
-  //       jobTitle: "Folder",
-  //       employmentType: "Folder",
-  //       type: "folder", // Set type to "folder" for group rows
-  //       children: [],
-  //     };
-
-  //     gridRef.current.api.applyTransaction({
-  //       add: [newGroupData],
-  //       addIndex: selectedNode.childIndex + 1, // Add the new folder after the selected node
-  //     });
-
-  //     // Since the selected node is now a parent, update its "type" property to "folder"
-  //     gridRef.current.api.applyTransaction({
-  //       update: [{ id: selectedNode.data.id, type: "folder" }],
-  //     });
-  //   }
-  // }, []);
 
   const isSelectionParentOfTarget = (selectedNode: any, targetNode: any) => {
     const children = [...(selectedNode.childrenAfterGroup || [])];
@@ -343,11 +423,12 @@ const DataGrid = () => {
         <div style={gridStyle} className="ag-theme-alpine">
           <AgGridReact
             ref={gridRef}
-            rowData={rowData}
+            rowData={format2Data}
             rowDragManaged={true}
             // rowSelection="single"
             onRowDragEnter={handleRowDragEnter}
             onRowDragEnd={handleRowDragEnd}
+            // onCellDoubleClicked={handleCellDoubleClick}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
             autoGroupColumnDef={autoGroupColumnDef}
